@@ -10,11 +10,11 @@ module DevtoAnalytics
       @client = APIClient.new
     end
 
-    def list_articles_page(page: 1, per_page: 100)
+    def list_articles_page(page: 1, per_page: 10)
       @client.list_articles(@org, per_page: per_page, page: page) || []
     end
 
-    def all_articles(per_page: 100)
+    def all_articles(per_page: 10)
       page = 1
       results = []
       loop do
