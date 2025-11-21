@@ -3,9 +3,10 @@ require 'csv'
 module DevtoAnalytics
   class Formatter
     def self.write_csv(path, rows)
-      CSV.open(path, 'w', write_headers: true, headers: %w[id url published_at]) do |csv|
+      headers = %w[id title url published_at readers reactions comments]
+      CSV.open(path, 'w', write_headers: true, headers: headers) do |csv|
         rows.each do |r|
-          csv << [r['id'], r['url'], r['published_at']]
+          csv << [r['id'], r['title'], r['url'], r['published_at'], r['readers'], r['reactions'], r['comments']]
         end
       end
     end

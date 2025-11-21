@@ -15,15 +15,28 @@ module DevtoAnalytics
     end
 
     def list_articles(org_slug, per_page: 100, page: 1)
-      # Attempt common listing endpoints; caller can inspect returned shape
+      # Prefer the organization-specific endpoint if available, falling back
+      # to the `?username=` query. Both support `page` and `per_page` params.
       params = { per_page: per_page, page: page }
       headers = default_headers
-      path = "/api/articles?username=#{org_slug}"
-      resp = @conn.get(path, params, headers)
-      parse_response(resp)
-    rescue Faraday::Error => e
-      warn "API list_articles error: #{e.message}"
-      []
+
+      # Try org endpoint first
+      begin
+        org_path = "/api/organizations/#{org_slug}/articles"
+        resp = @conn.get(org_path, params, headers)
+        return parse_response(resp)
+      rescue Faraday::ClientError => _e
+        # fallback to username-based endpoint
+      end
+
+      begin
+        path = "/api/articles"
+        resp = @conn.get(path, params.merge(username: org_slug), headers)
+        parse_response(resp)
+      rescue Faraday::Error => e
+        warn "API list_articles error: #{e.message}"
+        []
+      end
     end
 
     def get_article(article_id)
