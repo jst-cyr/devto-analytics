@@ -1,0 +1,13 @@
+#!/usr/bin/env ruby
+
+# Basic executable that loads environment and starts the Thor CLI
+begin
+  require 'dotenv'
+  Dotenv.load if File.exist?(File.join(__dir__, '..', '.env')) || File.exist?(File.join(__dir__, '..', '.env.local'))
+rescue LoadError
+  # dotenv not available; continue — env must be provided externally
+end
+
+require_relative '../lib/devto_analytics'
+
+DevtoAnalytics::CLI.start(ARGV)
