@@ -1,0 +1,77 @@
+[
+  {
+    "type_of": "article",
+    "id": 3042001,
+    "title": "Sample Article Title 1",
+    "description": "Short description...",
+    "slug": "sample-article-1",
+    "path": "/puppet/sample-article-1",
+    "url": "https://example.com/puppet/sample-article-1",
+    "comments_count": 0,
+    "public_reactions_count": 2,
+    "published_at": "2025-11-20T14:39:12Z",
+    "positive_reactions_count": 2,
+    "reading_time_minutes": 1,
+    "tag_list": ["puppet"],
+    "user": {
+      "name": "<redacted>",
+      "username": "<redacted>",
+      "user_id": null
+    },
+    "organization": {
+      "name": "puppet",
+      "username": "puppet",
+      "slug": "puppet"
+    }
+  },
+  {
+    "type_of": "article",
+    "id": 3032754,
+    "title": "Sample Article Title 2",
+    "description": "Short description...",
+    "slug": "sample-article-2",
+    "path": "/puppet/sample-article-2",
+    "url": "https://example.com/puppet/sample-article-2",
+    "comments_count": 1,
+    "public_reactions_count": 5,
+    "published_at": "2025-11-19T14:52:31Z",
+    "positive_reactions_count": 5,
+    "reading_time_minutes": 2,
+    "tag_list": ["puppet","devops"],
+    "user": {
+      "name": "<redacted>",
+      "username": "<redacted>",
+      "user_id": null
+    },
+    "organization": {
+      "name": "puppet",
+      "username": "puppet",
+      "slug": "puppet"
+    }
+  },
+  {
+    "type_of": "article",
+    "id": 2998307,
+    "title": "Sample Article Title 3",
+    "description": "Short description...",
+    "slug": "sample-article-3",
+    "path": "/puppet/sample-article-3",
+    "url": "https://example.com/puppet/sample-article-3",
+    "comments_count": 0,
+    "public_reactions_count": 0,
+    "published_at": "2025-11-06T16:57:07Z",
+    "positive_reactions_count": 0,
+    "reading_time_minutes": 4,
+    "tag_list": ["puppet"],
+    "user": {
+      "name": "<redacted>",
+      "username": "<redacted>",
+      "user_id": null
+    },
+    "organization": {
+      "name": "puppet",
+      "username": "puppet",
+      "slug": "puppet"
+    }
+  }
+]

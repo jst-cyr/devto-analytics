@@ -1,0 +1,20 @@
+{
+  "2025-11-18": {
+    "comments": { "total": 0 },
+    "follows": { "total": 0 },
+    "reactions": { "total": 0, "like": 0, "readinglist": 0, "unicorn": 0 },
+    "page_views": { "total": 1, "average_read_time_in_seconds": 60, "total_read_time_in_seconds": 60 }
+  },
+  "2025-11-19": {
+    "comments": { "total": 0 },
+    "follows": { "total": 2 },
+    "reactions": { "total": 1, "like": 1, "readinglist": 0, "unicorn": 0 },
+    "page_views": { "total": 5, "average_read_time_in_seconds": 40, "total_read_time_in_seconds": 200 }
+  },
+  "2025-11-20": {
+    "comments": { "total": 0 },
+    "follows": { "total": 3 },
+    "reactions": { "total": 1, "like": 1, "readinglist": 0, "unicorn": 0 },
+    "page_views": { "total": 12, "average_read_time_in_seconds": 55, "total_read_time_in_seconds": 660 }
+  }
+}
