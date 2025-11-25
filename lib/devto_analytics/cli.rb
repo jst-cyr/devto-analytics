@@ -8,7 +8,8 @@ module DevtoAnalytics
     option :format, type: :string, default: 'csv', desc: 'Output format: csv or json'
     option :out_dir, type: :string, desc: 'Output directory (overrides OUTPUT_DIR)'
     def fetch
-      org = options[:org] || ENV['DEVTO_ORG_SLUG'] || 'puppet'
+      org = options[:org] || ENV['DEVTO_ORG_SLUG']
+      raise Thor::RequiredArgumentMissingError, "No organization provided. Use --org or set DEVTO_ORG_SLUG." unless org
       since = options[:since] || ENV['DEVTO_SINCE'] || '2025-06-01'
       out_dir = options[:out_dir] || ENV['OUTPUT_DIR'] || 'data'
 
@@ -21,7 +22,8 @@ module DevtoAnalytics
     option :since, type: :string, desc: 'ISO start date to filter articles'
     option :out_file, type: :string, desc: 'Optional file to write JSON list'
     def list_articles
-      org = options[:org] || ENV['DEVTO_ORG_SLUG'] || 'puppet'
+      org = options[:org] || ENV['DEVTO_ORG_SLUG']
+      raise Thor::RequiredArgumentMissingError, "No organization provided. Use --org or set DEVTO_ORG_SLUG." unless org
       since = options[:since] || ENV['DEVTO_SINCE'] || '2025-06-01'
       collector = DevtoAnalytics::Collector.new(org: org, since: since)
       articles = collector.list_articles
