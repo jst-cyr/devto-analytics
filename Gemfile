@@ -6,6 +6,10 @@ gem 'thor'
 gem 'faraday'
 gem 'dotenv'
 gem 'csv'
+gem 'sinatra'
+gem 'webrick'
+gem 'rackup'
+gem 'puma'
 
 group :development, :test do
   gem 'rspec'

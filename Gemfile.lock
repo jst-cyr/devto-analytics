@@ -2,6 +2,7 @@ GEM
   remote: https://rubygems.org/
   specs:
     ast (2.4.3)
+    base64 (0.3.0)
     csv (3.3.5)
     diff-lcs (1.6.2)
     dotenv (3.1.8)
@@ -15,14 +16,29 @@ GEM
     language_server-protocol (3.17.0.5)
     lint_roller (1.1.0)
     logger (1.7.0)
+    mustermann (3.0.4)
+      ruby2_keywords (~> 0.0.1)
     net-http (0.8.0)
       uri (>= 0.11.1)
+    nio4r (2.7.5)
     parallel (1.27.0)
     parser (3.3.10.0)
       ast (~> 2.4.1)
       racc
     prism (1.6.0)
+    puma (7.1.0)
+      nio4r (~> 2.0)
     racc (1.8.1)
+    rack (3.2.4)
+    rack-protection (4.2.1)
+      base64 (>= 0.1.0)
+      logger (>= 1.6.0)
+      rack (>= 3.0.0, < 4)
+    rack-session (2.1.1)
+      base64 (>= 0.1.0)
+      rack (>= 3.0.0)
+    rackup (2.2.1)
+      rack (>= 3)
     rainbow (3.1.1)
     regexp_parser (2.11.3)
     rspec (3.13.2)
@@ -53,11 +69,21 @@ GEM
       parser (>= 3.3.7.2)
       prism (~> 1.4)
     ruby-progressbar (1.13.0)
+    ruby2_keywords (0.0.5)
+    sinatra (4.2.1)
+      logger (>= 1.6.0)
+      mustermann (~> 3.0)
+      rack (>= 3.0.0, < 4)
+      rack-protection (= 4.2.1)
+      rack-session (>= 2.0.0, < 3)
+      tilt (~> 2.0)
     thor (1.4.0)
+    tilt (2.6.1)
     unicode-display_width (3.2.0)
       unicode-emoji (~> 4.1)
     unicode-emoji (4.1.0)
     uri (1.1.1)
+    webrick (1.9.1)
 
 PLATFORMS
   x64-mingw-ucrt
@@ -66,9 +92,13 @@ DEPENDENCIES
   csv
   dotenv
   faraday
+  puma
+  rackup
   rspec
   rubocop
+  sinatra
   thor
+  webrick
 
 RUBY VERSION
    ruby 3.4.7p58

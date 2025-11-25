@@ -37,5 +37,12 @@ module DevtoAnalytics
         end
       end
     end
+
+    desc 'visualize', 'Start a local web server to visualize the analytics data'
+    def visualize
+      require_relative 'server'
+      puts "Starting visualization server at http://localhost:4567..."
+      DevtoAnalytics::Server.run!
+    end
   end
 end
