@@ -50,13 +50,23 @@ module DevtoAnalytics
       nil
     end
 
-    def analytics_totals(article_id)
-      safe_get('/api/analytics/totals', { article_id: article_id }, default_headers)
+    def get_organization(org_slug)
+      safe_get("/api/organizations/#{org_slug}", {}, default_headers)
     end
 
-    def analytics_historical(article_id, since: nil)
+    # `organization_id` is required to retrieve analytics for articles authored
+    # by other members of the org (Forem scopes per-article analytics to either
+    # the API key's user or, when supplied, the organization).
+    def analytics_totals(article_id, organization_id: nil)
+      params = { article_id: article_id }
+      params[:organization_id] = organization_id if organization_id
+      safe_get('/api/analytics/totals', params, default_headers)
+    end
+
+    def analytics_historical(article_id, since: nil, organization_id: nil)
       params = { article_id: article_id }
       params[:start] = since if since
+      params[:organization_id] = organization_id if organization_id
       safe_get('/api/analytics/historical', params, default_headers)
     end
 

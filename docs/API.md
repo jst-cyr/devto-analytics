@@ -49,9 +49,9 @@ Notes and mapping to requested output fields:
 
 Authentication notes:
 - Listing articles is available with the provided API key and returns public metadata.
-- Analytics endpoints (`/api/analytics/totals` and `/api/analytics/historical`) return per-article metrics and may require API keys with additional permissions (article owner or organization admin). If you receive `401` or `403` for analytics, confirm the API key belongs to an account authorized for those analytics.
+- Analytics endpoints (`/api/analytics/totals` and `/api/analytics/historical`) scope per-article results to an "owner": by default, the API key's own user. Requesting `article_id` alone for an article authored by someone else returns `422 {"error":"You can't view this article's stats"}`, with `readers` coming back blank.
+- Passing `organization_id` alongside `article_id` switches the owner to the organization, which authorizes analytics for *any* article published under that org — not just ones authored by the API key's user — as long as the key belongs to an org member (`GET /api/organizations/{slug}` resolves the numeric id). The collector resolves and passes this automatically.
 
 Next steps:
-- If you can provide (or obtain) an API key with analytics permissions, we can implement the collector to query `/api/analytics/totals` for each article and produce the consolidated CSV with the requested columns.
-- If analytics access is not available, the collector can still produce CSVs with URL, published_at, `positive_reactions_count`, and `comments_count` from article metadata (readers will be blank).
+- Analytics access is available; the collector queries `/api/analytics/totals` (with `organization_id`) for each article and produces the consolidated CSV with the requested columns, including readers for org members' posts.
 

@@ -14,6 +14,18 @@ module DevtoAnalytics
       @client.list_articles(@org, per_page: per_page, page: page) || []
     end
 
+    # Resolves the org's numeric id, needed to pull analytics for articles
+    # authored by other org members. Memoized; falls back to nil (analytics
+    # will then only succeed for articles authored by the API key's own user).
+    def organization_id
+      return @organization_id if defined?(@organization_id)
+
+      @organization_id = ENV['DEVTO_ORG_ID'] || begin
+        org = @client.get_organization(@org)
+        org && org['id']
+      end
+    end
+
     def all_articles(per_page: 10)
       page = 1
       results = []
@@ -63,6 +75,7 @@ module DevtoAnalytics
 
       rows = []
       records = []
+      org_id = organization_id
 
       articles.each do |a|
         published = a['published_at'] || a['published_timestamp']
@@ -83,7 +96,7 @@ module DevtoAnalytics
         # Try analytics totals (may return nil if unauthorized)
         totals = nil
         begin
-          totals = @client.analytics_totals(article_id)
+          totals = @client.analytics_totals(article_id, organization_id: org_id)
         rescue StandardError => e
           warn "Error fetching totals for article #{article_id}: #{e.message}"
           totals = nil
