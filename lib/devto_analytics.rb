@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 # Top-level require for the devto_analytics library
 require 'json'
 require 'csv'

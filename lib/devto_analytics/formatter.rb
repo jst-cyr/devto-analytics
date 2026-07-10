@@ -1,6 +1,9 @@
+# frozen_string_literal: true
+
 require 'csv'
 
 module DevtoAnalytics
+  # Writes collected article rows/records out to CSV and JSON files.
   class Formatter
     def self.write_csv(path, rows)
       headers = %w[id title url published_at readers reactions comments]

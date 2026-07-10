@@ -1,5 +1,19 @@
 AllCops:
-  TargetRubyVersion: 3.7
+  TargetRubyVersion: 3.4
+  NewCops: enable
 
 Layout/LineLength:
   Max: 120
+
+Metrics/BlockLength:
+  Exclude:
+    - 'spec/**/*'
+
+Metrics/MethodLength:
+  Max: 20
+
+Metrics/AbcSize:
+  Max: 22
+
+Metrics/ClassLength:
+  Max: 115

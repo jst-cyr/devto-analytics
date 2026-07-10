@@ -1,16 +1,19 @@
+# frozen_string_literal: true
+
 require 'sinatra/base'
 require 'json'
 
 module DevtoAnalytics
+  # Local Sinatra app that visualizes the most recently collected analytics data.
   class Server < Sinatra::Base
     set :root, File.dirname(__FILE__)
-    set :public_folder, Proc.new { File.join(root, 'public') }
-    set :views, Proc.new { File.join(root, 'views') }
+    set :public_folder, proc { File.join(root, 'public') }
+    set :views, proc { File.join(root, 'views') }
 
     get '/' do
       # Find the latest data directory
       data_root = File.join(Dir.pwd, 'data')
-      latest_dir = Dir.glob(File.join(data_root, '*')).select { |f| File.directory?(f) }.sort.last
+      latest_dir = Dir.glob(File.join(data_root, '*')).select { |f| File.directory?(f) }.max
 
       @data = []
       @org = 'Unknown'
@@ -22,8 +25,8 @@ module DevtoAnalytics
           @data = JSON.parse(File.read(json_file))
           filename = File.basename(json_file)
           if filename =~ /(.+)-analytics-(.+)\.json/
-            @org = $1
-            @date = $2
+            @org = ::Regexp.last_match(1)
+            @date = ::Regexp.last_match(2)
           end
         end
       end
@@ -31,6 +34,6 @@ module DevtoAnalytics
       erb :index
     end
 
-    run! if app_file == $0
+    run! if app_file == $PROGRAM_NAME
   end
 end

@@ -1,15 +1,17 @@
+# frozen_string_literal: true
+
 ruby '>= 3.4.7'
 
 source 'https://rubygems.org'
 
-gem 'thor'
-gem 'faraday'
-gem 'dotenv'
 gem 'csv'
-gem 'sinatra'
-gem 'webrick'
-gem 'rackup'
+gem 'dotenv'
+gem 'faraday'
 gem 'puma'
+gem 'rackup'
+gem 'sinatra'
+gem 'thor'
+gem 'webrick'
 
 group :development, :test do
   gem 'rspec'

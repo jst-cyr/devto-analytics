@@ -1,14 +1,17 @@
+# frozen_string_literal: true
+
 require 'faraday'
 require 'json'
 
 module DevtoAnalytics
+  # Thin wrapper around the dev.to / Forem REST API used by Collector.
   class APIClient
-    BASE_URL = 'https://dev.to'.freeze
+    BASE_URL = 'https://dev.to'
 
     DEFAULT_MAX_RETRIES = 4
     DEFAULT_INITIAL_BACKOFF = 1 # seconds
 
-    def initialize(api_key: ENV['DEVTO_API_KEY'])
+    def initialize(api_key: ENV.fetch('DEVTO_API_KEY', nil))
       @api_key = api_key
       @conn = Faraday.new(url: BASE_URL) do |f|
         f.request :url_encoded
@@ -17,29 +20,16 @@ module DevtoAnalytics
       end
     end
 
+    # Prefers the organization-specific endpoint, falling back to the
+    # `?username=` query if it's unavailable. Both support `page`/`per_page`.
     def list_articles(org_slug, per_page: 100, page: 1)
-      # Prefer the organization-specific endpoint if available, falling back
-      # to the `?username=` query. Both support `page` and `per_page` params.
       params = { per_page: per_page, page: page }
       headers = default_headers
 
-      # Try org endpoint first
-      begin
-        org_path = "/api/organizations/#{org_slug}/articles"
-        resp = @conn.get(org_path, params, headers)
-        return parse_response(resp)
-      rescue Faraday::ClientError => _e
-        # fallback to username-based endpoint
-      end
+      org_articles = fetch_org_articles(org_slug, params, headers)
+      return org_articles if org_articles
 
-      begin
-        path = "/api/articles"
-        resp = @conn.get(path, params.merge(username: org_slug), headers)
-        parse_response(resp)
-      rescue Faraday::Error => e
-        warn "API list_articles error: #{e.message}"
-        []
-      end
+      fetch_user_articles(org_slug, params, headers)
     end
 
     def get_article(article_id)
@@ -72,22 +62,31 @@ module DevtoAnalytics
 
     private
 
+    def fetch_org_articles(org_slug, params, headers)
+      resp = @conn.get("/api/organizations/#{org_slug}/articles", params, headers)
+      parse_response(resp)
+    rescue Faraday::ClientError
+      nil
+    end
+
+    def fetch_user_articles(org_slug, params, headers)
+      resp = @conn.get('/api/articles', params.merge(username: org_slug), headers)
+      parse_response(resp)
+    rescue Faraday::Error => e
+      warn "API list_articles error: #{e.message}"
+      []
+    end
+
     # Perform a GET with simple retry/backoff for 429 responses.
-    def safe_get(path, params = {}, headers = {}, max_retries: DEFAULT_MAX_RETRIES, initial_backoff: DEFAULT_INITIAL_BACKOFF)
+    def safe_get(path, params = {}, headers = {}, max_retries: DEFAULT_MAX_RETRIES,
+                 initial_backoff: DEFAULT_INITIAL_BACKOFF)
       retries = 0
       backoff = initial_backoff
       begin
         resp = @conn.get(path, params, headers)
-        return parse_response(resp)
+        parse_response(resp)
       rescue Faraday::ClientError => e
-        status = nil
-        begin
-          status = e.response[:status] if e.respond_to?(:response) && e.response.is_a?(Hash)
-        rescue StandardError
-          status = nil
-        end
-
-        if status == 429 && retries < max_retries
+        if client_error_status(e) == 429 && retries < max_retries
           warn "Rate limited (429) on #{path}; retrying in #{backoff}s (attempt #{retries + 1}/#{max_retries})"
           sleep(backoff)
           retries += 1
@@ -96,14 +95,18 @@ module DevtoAnalytics
         end
 
         warn "API request error: #{e.message}"
-        return nil
+        nil
       rescue Faraday::Error => e
         warn "API request error: #{e.message}"
-        return nil
+        nil
       end
     end
 
-    private
+    def client_error_status(error)
+      error.response[:status] if error.respond_to?(:response) && error.response.is_a?(Hash)
+    rescue StandardError
+      nil
+    end
 
     def default_headers
       hdr = { 'api-key' => @api_key }
@@ -112,7 +115,8 @@ module DevtoAnalytics
     end
 
     def parse_response(resp)
-      return nil unless resp && resp.body
+      return nil unless resp&.body
+
       JSON.parse(resp.body)
     rescue JSON::ParserError
       resp.body

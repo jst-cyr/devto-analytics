@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 require 'spec_helper'
 
 RSpec.describe DevtoAnalytics::Collector do
@@ -28,7 +30,7 @@ RSpec.describe DevtoAnalytics::Collector do
   describe '#run' do
     it 'passes organization_id on every analytics_totals call, so non-owned articles get readers too' do
       article = {
-        'id' => 3652706,
+        'id' => 3_652_706,
         'title' => 'Handling Dirty Frag and Copy Fail with Puppet',
         'url' => 'https://dev.to/puppet/handling-dirty-frag-and-copy-fail-with-puppet-6ff',
         'published_at' => '2026-05-13T21:00:55Z'
@@ -37,7 +39,7 @@ RSpec.describe DevtoAnalytics::Collector do
       allow(client).to receive(:list_articles).and_return([article], [])
       allow(client).to receive(:get_organization).with('puppet').and_return('id' => 2526)
       expect(client).to receive(:analytics_totals)
-        .with(3652706, organization_id: 2526)
+        .with(3_652_706, organization_id: 2526)
         .and_return('page_views' => { 'total' => 238 }, 'reactions' => { 'total' => 4 }, 'comments' => { 'total' => 0 })
 
       result = collector.run(write: false)
