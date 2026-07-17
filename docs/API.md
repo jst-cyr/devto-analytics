@@ -55,3 +55,8 @@ Authentication notes:
 Next steps:
 - Analytics access is available; the collector queries `/api/analytics/totals` (with `organization_id`) for each article and produces the consolidated CSV with the requested columns, including readers for org members' posts.
 
+Rate limiting notes:
+- Forem throttles API reads to ~3 requests/second per key (`Rack::Attack`, see `config/initializers/rack_attack.rb` in the Forem source) and returns `429` with a `Retry-After` header when exceeded.
+- `APIClient` paces requests below that rate (`MIN_REQUEST_INTERVAL`, default 0.4s) to avoid triggering 429s in the first place, and on a 429 sleeps for the exact `Retry-After` duration when the server provides one, falling back to exponential backoff (`DEFAULT_INITIAL_BACKOFF`, doubling each attempt) up to `DEFAULT_MAX_RETRIES` (default 6) otherwise.
+- All three are tunable via `DEVTO_MIN_REQUEST_INTERVAL`, `DEVTO_INITIAL_BACKOFF`, and `DEVTO_MAX_RETRIES` — raise `DEVTO_MAX_RETRIES` (or lower `DEVTO_MIN_REQUEST_INTERVAL`'s divisor by raising the interval) if a run still comes back with blank `readers` columns after exhausting retries.
+
