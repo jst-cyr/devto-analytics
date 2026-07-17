@@ -1,6 +1,8 @@
 # frozen_string_literal: true
 
 require 'spec_helper'
+require 'tmpdir'
+require 'json'
 
 RSpec.describe DevtoAnalytics::Collector do
   let(:client) { instance_double(DevtoAnalytics::APIClient) }
@@ -46,6 +48,57 @@ RSpec.describe DevtoAnalytics::Collector do
 
       row = result[:rows].first
       expect(row['readers']).to eq(238)
+    end
+  end
+
+  describe 'resuming an existing day\'s output' do
+    let(:out_dir) { Dir.mktmpdir }
+    let(:today) { Time.now.utc.strftime('%Y-%m-%d') }
+    let(:collector) { described_class.new(org: 'puppet', since: '2025-06-01', out_dir: out_dir) }
+
+    after { FileUtils.remove_entry(out_dir) }
+
+    def write_existing_json(records)
+      dir = File.join(out_dir, today)
+      FileUtils.mkdir_p(dir)
+      File.write(File.join(dir, "puppet-analytics-#{today}.json"), JSON.generate(records))
+    end
+
+    it 'does nothing and reports done when every existing record already has readers' do
+      records = [
+        { 'article' => { 'id' => 1, 'title' => 'A', 'url' => 'https://a', 'published_at' => '2025-06-02T00:00:00Z' },
+          'totals' => { 'page_views' => { 'total' => 10 } } }
+      ]
+      write_existing_json(records)
+
+      expect(client).not_to receive(:list_articles)
+      expect(client).not_to receive(:get_organization)
+      expect(client).not_to receive(:analytics_totals)
+
+      result = collector.run(write: true)
+
+      expect(result[:records]).to eq(records)
+    end
+
+    it 'retries only the articles missing readers, leaving successful ones untouched' do
+      records = [
+        { 'article' => { 'id' => 1, 'title' => 'A', 'url' => 'https://a', 'published_at' => '2025-06-02T00:00:00Z' },
+          'totals' => { 'page_views' => { 'total' => 10 } } },
+        { 'article' => { 'id' => 2, 'title' => 'B', 'url' => 'https://b', 'published_at' => '2025-06-03T00:00:00Z' },
+          'totals' => nil }
+      ]
+      write_existing_json(records)
+
+      expect(client).not_to receive(:list_articles)
+      allow(client).to receive(:get_organization).with('puppet').and_return('id' => 2526)
+      expect(client).to receive(:analytics_totals)
+        .with(2, organization_id: 2526)
+        .and_return('page_views' => { 'total' => 99 })
+
+      result = collector.run(write: true)
+
+      readers_by_id = result[:rows].to_h { |r| [r['id'], r['readers']] }
+      expect(readers_by_id).to eq(1 => 10, 2 => 99)
     end
   end
 end

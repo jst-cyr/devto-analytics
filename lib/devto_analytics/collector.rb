@@ -2,6 +2,7 @@
 
 require 'time'
 require 'fileutils'
+require 'json'
 
 module DevtoAnalytics
   # Fetches an org's articles and per-article analytics, then formats them
@@ -51,6 +52,20 @@ module DevtoAnalytics
 
     def run(write: true, format: 'csv')
       $stdout.sync = true
+      timestamp = Time.now.utc.strftime('%Y-%m-%d')
+      csv_path, json_path = output_paths(timestamp)
+
+      if write
+        existing = load_existing_records(json_path)
+        return resume(existing, csv_path, json_path, format) if existing
+      end
+
+      full_run(write, format, csv_path, json_path)
+    end
+
+    private
+
+    def full_run(write, format, csv_path, json_path)
       puts "Collecting articles for org=#{@org} since=#{@since}"
       articles = all_articles(per_page: 100)
       matching = matching_articles(articles)
@@ -58,12 +73,76 @@ module DevtoAnalytics
 
       rows, records = process_articles(matching)
 
-      write ? write_outputs(rows, records, format) : puts("Dry run: would write #{rows.size} rows")
+      write ? write_outputs(rows, records, format, csv_path, json_path) : puts("Dry run: would write #{rows.size} rows")
 
       { articles: articles, rows: rows, records: records }
     end
 
-    private
+    # Picks up a previous run's output for today: articles that already have
+    # readers are left untouched, and only the ones that failed (almost always
+    # due to 429s exhausting their retries) are re-fetched. Avoids re-listing
+    # articles or re-querying analytics that already succeeded.
+    def resume(records, csv_path, json_path, format)
+      incomplete = records.reject { |r| readers_present?(r['totals']) }
+
+      if incomplete.empty?
+        puts "#{csv_path} already complete (#{records.size} articles all have readers) — nothing to do."
+        return { articles: records.map { |r| r['article'] }, rows: nil, records: records }
+      end
+
+      retry_incomplete(records, incomplete, csv_path)
+      rows = records.map { |r| build_row(r['article'], article_published(r['article']), r['totals']) }
+
+      write_outputs(rows, records, format, csv_path, json_path)
+      { articles: records.map { |r| r['article'] }, rows: rows, records: records }
+    end
+
+    def retry_incomplete(records, incomplete, csv_path)
+      puts "Resuming #{File.basename(csv_path)}: #{incomplete.size}/#{records.size} " \
+           'articles missing readers, retrying those.'
+      org_id = organization_id
+      by_id = index_by_article_id(records)
+
+      incomplete.each_with_index do |record, idx|
+        article_id = record['article']['id']
+        refresh_totals(by_id, article_id, org_id)
+        report_progress(idx + 1, incomplete.size, article_id, by_id[article_id]['totals'])
+      end
+    end
+
+    def index_by_article_id(records)
+      records.each_with_object({}) { |r, h| h[r['article']['id']] = r }
+    end
+
+    def refresh_totals(by_id, article_id, org_id)
+      totals = fetch_totals(article_id, org_id)
+      by_id[article_id]['totals'] = totals if totals.is_a?(Hash)
+    end
+
+    def readers_present?(totals)
+      !extract_metrics(totals)[:readers].nil?
+    end
+
+    def article_published(article)
+      article['published_at'] || article['published_timestamp']
+    end
+
+    def load_existing_records(json_path)
+      return nil unless File.exist?(json_path)
+
+      JSON.parse(File.read(json_path))
+    rescue StandardError => e
+      warn "Could not read existing #{json_path}, running fresh: #{e.message}"
+      nil
+    end
+
+    def output_paths(timestamp)
+      dir = File.join(@out_dir, timestamp)
+      [
+        File.join(dir, "#{@org}-analytics-#{timestamp}.csv"),
+        File.join(dir, "#{@org}-analytics-#{timestamp}.json")
+      ]
+    end
 
     def safe_parse_time(str)
       Time.parse(str)
@@ -77,7 +156,7 @@ module DevtoAnalytics
     end
 
     def skip_article?(article, since_time)
-      published = article['published_at'] || article['published_timestamp']
+      published = article_published(article)
       published.nil? || before_since?(published, since_time)
     end
 
@@ -87,7 +166,7 @@ module DevtoAnalytics
       records = []
 
       matching.each_with_index do |a, idx|
-        published = a['published_at'] || a['published_timestamp']
+        published = article_published(a)
         totals = fetch_totals(a['id'], org_id)
         rows << build_row(a, published, totals)
         records << { 'article' => a, 'totals' => totals }
@@ -110,7 +189,7 @@ module DevtoAnalytics
       since_time = safe_parse_time(@since)
       return false unless since_time
 
-      last_pub = batch.last && (batch.last['published_at'] || batch.last['published_timestamp'])
+      last_pub = batch.last && article_published(batch.last)
       return false unless last_pub
 
       last_time = safe_parse_time(last_pub)
@@ -158,12 +237,8 @@ module DevtoAnalytics
       metrics
     end
 
-    def write_outputs(rows, records, format)
-      timestamp = Time.now.utc.strftime('%Y-%m-%d')
-      dir = File.join(@out_dir, timestamp)
-      FileUtils.mkdir_p(dir)
-      csv_path = File.join(dir, "#{@org}-analytics-#{timestamp}.csv")
-      json_path = File.join(dir, "#{@org}-analytics-#{timestamp}.json")
+    def write_outputs(rows, records, format, csv_path, json_path)
+      FileUtils.mkdir_p(File.dirname(csv_path))
 
       if format.downcase == 'json'
         Formatter.write_json(json_path, records)
