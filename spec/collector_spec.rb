@@ -51,6 +51,51 @@ RSpec.describe DevtoAnalytics::Collector do
     end
   end
 
+  describe 'skipping organization_id for owned articles' do
+    before do
+      allow(ENV).to receive(:fetch).and_call_original
+      allow(ENV).to receive(:fetch).with('DEVTO_USERNAME', anything).and_return('jasonstcyr')
+    end
+
+    it 'omits organization_id when DEVTO_USERNAME matches the article author (cheaper, less-throttled path)' do
+      article = {
+        'id' => 111,
+        'title' => 'My Own Post',
+        'url' => 'https://dev.to/puppet/my-own-post',
+        'published_at' => '2026-05-13T21:00:55Z',
+        'user' => { 'username' => 'jasonstcyr' }
+      }
+
+      allow(client).to receive(:list_articles).and_return([article], [])
+      allow(client).to receive(:get_organization).with('puppet').and_return('id' => 2526)
+      expect(client).to receive(:analytics_totals)
+        .with(111, organization_id: nil)
+        .and_return('page_views' => { 'total' => 50 })
+
+      result = collector.run(write: false)
+      expect(result[:rows].first['readers']).to eq(50)
+    end
+
+    it 'still passes organization_id when the article was authored by someone else' do
+      article = {
+        'id' => 222,
+        'title' => "Someone Else's Post",
+        'url' => 'https://dev.to/puppet/someone-elses-post',
+        'published_at' => '2026-05-13T21:00:55Z',
+        'user' => { 'username' => 'albatrossflavour' }
+      }
+
+      allow(client).to receive(:list_articles).and_return([article], [])
+      allow(client).to receive(:get_organization).with('puppet').and_return('id' => 2526)
+      expect(client).to receive(:analytics_totals)
+        .with(222, organization_id: 2526)
+        .and_return('page_views' => { 'total' => 20 })
+
+      result = collector.run(write: false)
+      expect(result[:rows].first['readers']).to eq(20)
+    end
+  end
+
   describe 'resuming an existing day\'s output' do
     let(:out_dir) { Dir.mktmpdir }
     let(:today) { Time.now.utc.strftime('%Y-%m-%d') }
