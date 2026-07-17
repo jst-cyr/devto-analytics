@@ -50,23 +50,13 @@ module DevtoAnalytics
     end
 
     def run(write: true, format: 'csv')
+      $stdout.sync = true
       puts "Collecting articles for org=#{@org} since=#{@since}"
       articles = all_articles(per_page: 100)
-      puts "Found #{articles.size} articles total (fetched pages)"
+      matching = matching_articles(articles)
+      puts "Found #{articles.size} articles total (fetched pages); #{matching.size} match since=#{@since}"
 
-      since_time = safe_parse_time(@since)
-      org_id = organization_id
-      rows = []
-      records = []
-
-      articles.each do |a|
-        published = a['published_at'] || a['published_timestamp']
-        next if published.nil? || before_since?(published, since_time)
-
-        totals = fetch_totals(a['id'], org_id)
-        rows << build_row(a, published, totals)
-        records << { 'article' => a, 'totals' => totals }
-      end
+      rows, records = process_articles(matching)
 
       write ? write_outputs(rows, records, format) : puts("Dry run: would write #{rows.size} rows")
 
@@ -79,6 +69,37 @@ module DevtoAnalytics
       Time.parse(str)
     rescue StandardError
       nil
+    end
+
+    def matching_articles(articles)
+      since_time = safe_parse_time(@since)
+      articles.reject { |a| skip_article?(a, since_time) }
+    end
+
+    def skip_article?(article, since_time)
+      published = article['published_at'] || article['published_timestamp']
+      published.nil? || before_since?(published, since_time)
+    end
+
+    def process_articles(matching)
+      org_id = organization_id
+      rows = []
+      records = []
+
+      matching.each_with_index do |a, idx|
+        published = a['published_at'] || a['published_timestamp']
+        totals = fetch_totals(a['id'], org_id)
+        rows << build_row(a, published, totals)
+        records << { 'article' => a, 'totals' => totals }
+        report_progress(idx + 1, matching.size, a['id'], totals)
+      end
+
+      [rows, records]
+    end
+
+    def report_progress(index, total, article_id, totals)
+      status = totals.is_a?(Hash) ? 'ok' : 'FAIL'
+      puts "[#{index}/#{total}] #{status} id=#{article_id}"
     end
 
     # Whether the last article in a fetched page is older than `@since`,
