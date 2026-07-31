@@ -20,7 +20,9 @@ module DevtoAnalytics
       @date = 'Unknown'
 
       if latest_dir
-        json_file = Dir.glob(File.join(latest_dir, '*.json')).first
+        # Match the totals file specifically; the same directory also holds the
+        # recent-window JSON, which has a different shape.
+        json_file = Dir.glob(File.join(latest_dir, '*-analytics-*.json')).first
         if json_file
           @data = JSON.parse(File.read(json_file))
           filename = File.basename(json_file)

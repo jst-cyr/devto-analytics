@@ -1,8 +1,15 @@
 # Analytics Dashboard for dev.to
 Pulls dev.to analytics from the Forem API for a given organization.
 
-Provides the following data:
-- TBD
+Each `fetch` writes two CSVs under `data/YYYY-MM-DD/`:
+
+- `{org}-analytics-{date}.csv` — **lifetime** readers, reactions and comments per article.
+- `{org}-window-{date}.csv` — the same articles, but counting only activity in the
+  **last 7 calendar days**, plus read time and follows.
+
+The window is whole UTC days ending on the current date, so it doesn't shift with
+the time of day a run happens. Use `--days N` for a different span, or
+`--skip-window` to write only the lifetime CSV. See [docs/USAGE.md](docs/USAGE.md).
 
 ## Requirements
 

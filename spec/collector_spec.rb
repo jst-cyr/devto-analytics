@@ -44,7 +44,7 @@ RSpec.describe DevtoAnalytics::Collector do
         .with(3_652_706, organization_id: 2526)
         .and_return('page_views' => { 'total' => 238 }, 'reactions' => { 'total' => 4 }, 'comments' => { 'total' => 0 })
 
-      result = collector.run(write: false)
+      result = collector.run(write: false, weekly: false)
 
       row = result[:rows].first
       expect(row['readers']).to eq(238)
@@ -72,7 +72,7 @@ RSpec.describe DevtoAnalytics::Collector do
         .with(111, organization_id: nil)
         .and_return('page_views' => { 'total' => 50 })
 
-      result = collector.run(write: false)
+      result = collector.run(write: false, weekly: false)
       expect(result[:rows].first['readers']).to eq(50)
     end
 
@@ -91,8 +91,59 @@ RSpec.describe DevtoAnalytics::Collector do
         .with(222, organization_id: 2526)
         .and_return('page_views' => { 'total' => 20 })
 
-      result = collector.run(write: false)
+      result = collector.run(write: false, weekly: false)
       expect(result[:rows].first['readers']).to eq(20)
+    end
+  end
+
+  describe 'the recent-window CSV written alongside the totals CSV' do
+    let(:out_dir) { Dir.mktmpdir }
+    let(:today) { Time.now.utc.strftime('%Y-%m-%d') }
+    let(:collector) { described_class.new(org: 'puppet', since: '2025-06-01', out_dir: out_dir) }
+    let(:article) do
+      { 'id' => 7, 'title' => 'A', 'url' => 'https://a', 'published_at' => '2025-06-02T00:00:00Z' }
+    end
+
+    after { FileUtils.remove_entry(out_dir) }
+
+    before do
+      allow(client).to receive(:list_articles).and_return([article], [])
+      allow(client).to receive(:get_organization).with('puppet').and_return('id' => 2526)
+      allow(client).to receive(:analytics_totals).and_return('page_views' => { 'total' => 238 })
+    end
+
+    it 'writes both CSVs, the second scoped to the window and the first still lifetime totals' do
+      window_start = (Time.now.utc.to_date - 6).to_s
+      expect(client).to receive(:analytics_historical)
+        .with(7, since: window_start, organization_id: 2526)
+        .and_return(window_start => { 'page_views' => { 'total' => 12 } })
+
+      collector.run(write: true)
+
+      totals = CSV.read(File.join(out_dir, today, "puppet-analytics-#{today}.csv"), headers: true)
+      window = CSV.read(File.join(out_dir, today, "puppet-window-#{today}.csv"), headers: true)
+
+      expect(totals.first['readers']).to eq('238')
+      expect(window.first['readers']).to eq('12')
+      expect(window.first['window_start']).to eq(window_start)
+      expect(window.first['window_end']).to eq(today)
+    end
+
+    it 'honours a custom window length' do
+      expect(client).to receive(:analytics_historical)
+        .with(7, since: (Time.now.utc.to_date - 29).to_s, organization_id: 2526)
+        .and_return({})
+
+      collector.run(write: true, weekly_days: 30)
+    end
+
+    it 'skips the second pass entirely when weekly is off' do
+      expect(client).not_to receive(:analytics_historical)
+
+      result = collector.run(write: true, weekly: false)
+
+      expect(result[:weekly_rows]).to be_nil
+      expect(File.exist?(File.join(out_dir, today, "puppet-window-#{today}.csv"))).to be(false)
     end
   end
 
@@ -120,7 +171,7 @@ RSpec.describe DevtoAnalytics::Collector do
       expect(client).not_to receive(:get_organization)
       expect(client).not_to receive(:analytics_totals)
 
-      result = collector.run(write: true)
+      result = collector.run(write: true, weekly: false)
 
       expect(result[:records]).to eq(records)
     end
@@ -140,7 +191,7 @@ RSpec.describe DevtoAnalytics::Collector do
         .with(2, organization_id: 2526)
         .and_return('page_views' => { 'total' => 99 })
 
-      result = collector.run(write: true)
+      result = collector.run(write: true, weekly: false)
 
       readers_by_id = result[:rows].to_h { |r| [r['id'], r['readers']] }
       expect(readers_by_id).to eq(1 => 10, 2 => 99)

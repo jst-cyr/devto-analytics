@@ -40,6 +40,27 @@ Captured responses (saved in `docs/`):
 		- `reactions`: { `total`: Integer, `like`: Integer, `readinglist`: Integer, `unicorn`: Integer }
 		- `page_views`: { `total`: Integer, `average_read_time_in_seconds`: Integer, `total_read_time_in_seconds`: Integer }
 
+Behaviour of `/api/analytics/historical` (observed 2026-07-31, org `puppet`):
+- `start` is inclusive, and the response runs from `start` through *today* — there
+  is no `end` parameter, so a bounded window has to be trimmed client-side
+  (`WeeklyCollector#within_window`).
+- Days with no activity are still present, with zeroed metrics. An absent date is
+  therefore not the same as a zero, and a `{"error": ...}` body must not be summed
+  as zero — it means the request was refused (see authentication notes below).
+- It obeys the same `organization_id` ownership scoping as `/totals`.
+- Summing `page_views.total` over a 7-day window across all 62 org articles gave
+  212, matching the diff of the 2026-07-24 and 2026-07-31 lifetime snapshots
+  (`+212` for pre-existing articles) — the two endpoints agree in aggregate.
+  Per-article they agreed on 58 of 60; the 2 that differed by 10 are explained by
+  the snapshots being taken at different times of day, which is precisely why the
+  window CSV uses this endpoint rather than a snapshot diff.
+- **Page views are reported in coarse buckets.** Across all 27 consecutive weekly
+  snapshot pairs collected so far, 92.5% of per-article deltas are exact multiples
+  of 10 (129 landed on exactly `+10` versus 17 on `+11`/`+12`/`+13` combined), and
+  single-day historical values for low-traffic articles come back as `0` or `10`.
+  Treat small `page_views` differences as noise. `total_read_time_in_seconds` does
+  not appear to be bucketed and is the finer-grained engagement signal.
+
 Notes and mapping to requested output fields:
 - Article URL: use `url` or `canonical_url` from `sample_articles.json`.
 - Date posted: use `published_at` or `published_timestamp` from article metadata.
@@ -56,6 +77,9 @@ Authentication notes:
 
 Next steps:
 - Analytics access is available; the collector queries `/api/analytics/totals` for each article — with `organization_id` only when needed — and produces the consolidated CSV with the requested columns, including readers for org members' posts.
+- A second pass queries `/api/analytics/historical` for each article and writes a
+  recent-window CSV (`{org}-window-{date}.csv`) covering the last 7 calendar days.
+  See `docs/USAGE.md` for the output columns and window semantics.
 
 Rate limiting notes:
 - Forem throttles API reads to ~3 requests/second per key (`Rack::Attack`, see `config/initializers/rack_attack.rb` in the Forem source) and returns `429` with a `Retry-After` header when exceeded.

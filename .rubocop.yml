@@ -16,4 +16,6 @@ Metrics/AbcSize:
   Max: 22
 
 Metrics/ClassLength:
-  Max: 190
+  # Collector orchestrates two passes (lifetime totals + recent window) plus
+  # resume handling. If it grows much past this, split the resume concern out.
+  Max: 200
