@@ -10,12 +10,17 @@ module DevtoAnalytics
     option :since, type: :string, desc: 'ISO start date (overrides DEVTO_SINCE)'
     option :format, type: :string, default: 'csv', desc: 'Output format: csv or json'
     option :out_dir, type: :string, desc: 'Output directory (overrides OUTPUT_DIR)'
+    option :days, type: :numeric, default: DevtoAnalytics::WeeklyCollector::DEFAULT_DAYS,
+                  desc: 'Length of the recent-window CSV in whole UTC days, ending today'
+    option :skip_window, type: :boolean, default: false,
+                         desc: 'Skip the recent-window CSV (saves one API call per article)'
     def fetch
       org, since = org_and_since
       out_dir = options[:out_dir] || ENV['OUTPUT_DIR'] || 'data'
 
       collector = DevtoAnalytics::Collector.new(org: org, since: since, out_dir: out_dir)
-      collector.run(write: true, format: options[:format])
+      collector.run(write: true, format: options[:format],
+                    weekly: !options[:skip_window], weekly_days: options[:days])
     end
 
     desc 'list-articles', 'List articles for an organization (useful for discovering IDs)'

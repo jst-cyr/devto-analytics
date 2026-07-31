@@ -63,22 +63,36 @@ module DevtoAnalytics
       results
     end
 
-    def run(write: true, format: 'csv')
+    def run(write: true, format: 'csv', weekly: true, weekly_days: WeeklyCollector::DEFAULT_DAYS)
       $stdout.sync = true
-      timestamp = Time.now.utc.strftime('%Y-%m-%d')
-      csv_path, json_path = output_paths(timestamp)
+      paths = output_paths(Time.now.utc.strftime('%Y-%m-%d'))
+      existing = write ? load_existing_records(paths[:json]) : nil
 
-      if write
-        existing = load_existing_records(json_path)
-        return resume(existing, csv_path, json_path, format) if existing
-      end
+      result = existing ? resume(existing, paths, format) : full_run(write, format, paths)
+      return result unless weekly
 
-      full_run(write, format, csv_path, json_path)
+      result.merge(weekly_run(result[:records], weekly_days, write, paths))
     end
 
     private
 
-    def full_run(write, format, csv_path, json_path)
+    # Second pass over the same articles, pulling per-day history so the window
+    # is a real measurement of the period rather than a diff of two snapshots.
+    # Costs one extra API call per article, paced by APIClient like the rest.
+    def weekly_run(records, days, write, paths)
+      articles = Array(records).map { |r| r['article'] }.compact
+      return { weekly_rows: nil, weekly_records: nil } if articles.empty?
+
+      weekly = WeeklyCollector.new(client: @client, days: days,
+                                   paths: { csv: paths[:weekly_csv], json: paths[:weekly_json] },
+                                   scope: ->(a) { org_id_for(a, organization_id) })
+      rows, weekly_records = weekly.run(articles, write: write,
+                                                  existing: write ? load_existing_records(paths[:weekly_json]) : nil)
+
+      { weekly_rows: rows, weekly_records: weekly_records }
+    end
+
+    def full_run(write, format, paths)
       puts "Collecting articles for org=#{@org} since=#{@since}"
       articles = all_articles(per_page: 100)
       matching = matching_articles(articles)
@@ -86,7 +100,7 @@ module DevtoAnalytics
 
       rows, records = process_articles(matching)
 
-      write ? write_outputs(rows, records, format, csv_path, json_path) : puts("Dry run: would write #{rows.size} rows")
+      write ? write_outputs(rows, records, format, paths) : puts("Dry run: would write #{rows.size} rows")
 
       { articles: articles, rows: rows, records: records }
     end
@@ -95,19 +109,20 @@ module DevtoAnalytics
     # readers are left untouched, and only the ones that failed (almost always
     # due to 429s exhausting their retries) are re-fetched. Avoids re-listing
     # articles or re-querying analytics that already succeeded.
-    def resume(records, csv_path, json_path, format)
+    def resume(records, paths, format)
+      articles = records.map { |r| r['article'] }
       incomplete = records.reject { |r| readers_present?(r['totals']) }
 
       if incomplete.empty?
-        puts "#{csv_path} already complete (#{records.size} articles all have readers) — nothing to do."
-        return { articles: records.map { |r| r['article'] }, rows: nil, records: records }
+        puts "#{paths[:csv]} already complete (#{records.size} articles all have readers) — nothing to do."
+        return { articles: articles, rows: nil, records: records }
       end
 
-      retry_incomplete(records, incomplete, csv_path)
+      retry_incomplete(records, incomplete, paths[:csv])
       rows = records.map { |r| build_row(r['article'], article_published(r['article']), r['totals']) }
 
-      write_outputs(rows, records, format, csv_path, json_path)
-      { articles: records.map { |r| r['article'] }, rows: rows, records: records }
+      write_outputs(rows, records, format, paths)
+      { articles: articles, rows: rows, records: records }
     end
 
     def retry_incomplete(records, incomplete, csv_path)
@@ -152,10 +167,12 @@ module DevtoAnalytics
 
     def output_paths(timestamp)
       dir = File.join(@out_dir, timestamp)
-      [
-        File.join(dir, "#{@org}-analytics-#{timestamp}.csv"),
-        File.join(dir, "#{@org}-analytics-#{timestamp}.json")
-      ]
+      {
+        csv: File.join(dir, "#{@org}-analytics-#{timestamp}.csv"),
+        json: File.join(dir, "#{@org}-analytics-#{timestamp}.json"),
+        weekly_csv: File.join(dir, "#{@org}-window-#{timestamp}.csv"),
+        weekly_json: File.join(dir, "#{@org}-window-#{timestamp}.json")
+      }
     end
 
     def safe_parse_time(str)
@@ -251,17 +268,16 @@ module DevtoAnalytics
       metrics
     end
 
-    def write_outputs(rows, records, format, csv_path, json_path)
-      FileUtils.mkdir_p(File.dirname(csv_path))
+    def write_outputs(rows, records, format, paths)
+      FileUtils.mkdir_p(File.dirname(paths[:csv]))
 
-      if format.downcase == 'json'
-        Formatter.write_json(json_path, records)
-      else
-        Formatter.write_csv(csv_path, rows)
-        Formatter.write_json(json_path, records)
-        puts "Wrote #{csv_path}"
+      unless format.downcase == 'json'
+        Formatter.write_csv(paths[:csv], rows)
+        puts "Wrote #{paths[:csv]}"
       end
-      puts "Wrote #{json_path}"
+
+      Formatter.write_json(paths[:json], records)
+      puts "Wrote #{paths[:json]}"
     end
   end
 end
